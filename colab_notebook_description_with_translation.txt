@@ -1,0 +1,29 @@
+
+# Google Colab Notebook Structure for ML Practice Assignments / Структура Google Colab ноутбука для практических заданий по МО
+
+This notebook serves as a template for practical assignments in Machine Learning. It provides step-by-step instructions
+and code cells for implementing basic ML models.
+*Этот ноутбук служит шаблоном для практических заданий по машинному обучению. Он содержит пошаговые инструкции и ячейки для написания кода, предназначенные для реализации базовых моделей.*
+
+## Notebook Sections / Разделы ноутбука
+
+1. **Introduction**: A brief introduction to the assignment and the learning objectives.
+   *Введение: Краткое описание задания и целей обучения.*
+2. **Task Instructions**: Detailed instructions on the task that students need to perform.
+   *Инструкции по заданиям: Подробное описание задач, которые должен выполнить студент.*
+3. **Code Cells**: Cells with placeholders for students to write and run their code.
+   *Ячейки кода: Ячейки с местами для написания и выполнения кода студентом.*
+4. **Automatic Testing**: Simple tests that verify if the student's implementation is correct (e.g., calculating mean squared error).
+   *Автоматическая проверка: Простые тесты, которые проверяют правильность выполнения задания (например, расчет средней квадратичной ошибки).*
+
+## Sample Assignment: Linear Regression / Пример задания: Линейная регрессия
+
+- **Task 1**: Import necessary libraries and define sample data for a linear regression model.
+  *Задание 1: Импортируйте необходимые библиотеки и создайте данные для модели линейной регрессии.*
+- **Task 2**: Implement the model using `sklearn` and test it on sample data.
+  *Задание 2: Реализуйте модель с использованием `sklearn` и протестируйте её на примере данных.*
+- **Task 3**: Check accuracy with mean squared error and validate if the model passes the required threshold.
+  *Задание 3: Проверьте точность модели с помощью средней квадратичной ошибки и проверьте, соответствует ли модель заданному порогу.*
+
+This template can be modified to include additional tasks, such as data preprocessing, different ML models, or evaluation metrics.
+*Этот шаблон можно изменить, добавив дополнительные задания, такие как предобработка данных, использование различных моделей или метрик оценки.*

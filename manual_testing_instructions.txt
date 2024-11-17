@@ -1,0 +1,40 @@
+
+# Manual Testing Instructions for Neuro Assistant Project
+
+## Purpose
+These instructions guide you through testing the functionality of the Telegram bot and JSON data handling.
+
+## Steps
+
+1. **Start the Bot**
+   - Use the `/start` command to initiate the bot interaction.
+   - Ensure the bot greets the user and provides instructions for registration.
+
+2. **Register a User**
+   - Use the `/register` command to register a test user.
+   - Verify that the JSON file updates correctly with the new user details.
+
+3. **Check Menu Options**
+   - Use the `/menu` command to view the available options.
+   - Ensure that options for lectures, quizzes, and progress are displayed.
+
+4. **Complete a Lecture**
+   - Use the `/lecture` command to simulate completing a lecture.
+   - Verify that the progress and achievements in the JSON file update accordingly.
+
+5. **Take a Quiz**
+   - Use the `/quiz` command to simulate completing a quiz.
+   - Check that the JSON file reflects the completed quiz and any relevant achievements.
+
+6. **View Progress**
+   - Use the `/progress` command to display the user’s progress, level, and achievements.
+   - Ensure the information matches the JSON file.
+
+## Notes
+- Test with multiple users to verify handling of concurrent progress.
+- Review the JSON file after each step to confirm accurate data updates.
+- Report any discrepancies or errors for further debugging.
+
+## Example JSON States
+- Initial state: `test_initial_state.json`
+- Updated state after tests: `test_updated_state.json`
