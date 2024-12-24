@@ -19,13 +19,22 @@ def reload_learnly(line):
 get_ipython().register_magic_function(reload_learnly, 'line')
 
 
+# TODO: способность задавать проверочные вопросы
+# - создавать задания для ученика
+# - давать возможность их выполнить и предъявить решение и ответ
+# - проверить и написать отзыв для ученика - AI
+
+
 class LearnlyEngine:
     def __init__(self):
         self.current_task = 1
+
+        # TODO:
+        # Получаем задания от AI. См. файл learnly_ai.py
         self.tasks = {
             1: {
                 'title': 'Создайте переменную x и присвойте ей значение 42',
-                'hint': 'Используйте оператор присваивания =, например: variable = value',
+                'hint': 'Используйте оператор присваивания =, например: переменная = значение',
                 'check': lambda ns: 'x' in ns and ns['x'] == 42,
                 'error': 'Нужно создать переменную x со значением 42',
                 'success': 'Отлично! Задание выполнено правильно!'
@@ -63,7 +72,12 @@ class LearnlyEngine:
     def create_solution_cell(self, title: str) -> None:
         """Создает новую ячейку с магической командой"""
         shell = get_ipython()
-        shell.set_next_input(f'%%check_solution\n\n# {title}\n# Напишите ваше решение здесь:\n\n', replace=False)
+        shell.set_next_input(
+            f"%%check_solution\n\n"
+            f"# {title}\n"
+            f"# Напишите ваше решение здесь:\n\n",
+            replace=False
+        )
 
     def show_task(self, task_num: int) -> None:
         """Показывает задание с указанным номером"""
