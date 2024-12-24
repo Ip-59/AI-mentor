@@ -1,0 +1,13 @@
+# Файлы с конфиденциальными данными
+.env
+
+# Кэш Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Виртуальное окружение
+.venv
