@@ -1,4 +1,3 @@
-# TODO:
 # Обращаемся к AI и просим его написать задание (на основе контекста урока). Вот пример:
 # {
 #     'problem': 'Создайте переменную x и присвойте ей значение 42',
@@ -8,21 +7,44 @@
 #     'success': 'Отлично! Задание выполнено правильно!'
 # },
 
+# Еще примеры заданий:
+# self.tasks = {
+#     1: {
+#         'problem': 'Создайте переменную x и присвойте ей значение 42',
+#         'hint': 'Используйте оператор присваивания =, например: переменная = значение',
+#         'check': lambda ns: 'x' in ns and ns['x'] == 42,
+#         'error': 'Нужно создать переменную x со значением 42',
+#         'success': 'Отлично! Задание выполнено правильно!'
+#     },
+#     2: {
+#         'problem': 'Создайте список numbers, содержащий числа от 1 до 5',
+#         'hint': '''Списки создаются с помощью квадратных скобок: [1, 2, ...]''',
+#         'check': lambda ns: ('numbers' in ns and
+#                            isinstance(ns['numbers'], list) and
+#                            ns['numbers'] == [1, 2, 3, 4, 5]),
+#         'error': 'Список numbers должен содержать числа от 1 до 5 в порядке возрастания',
+#         'success': 'Превосходно! Вы справились со вторым заданием!'
+#     },
+#     3: {
+#         'problem': 'Напишите функцию square(n), которая возвращает квадрат числа n',
+#         'hint': '''                    Функция определяется так:
+#             def square(n):
+#                 return ...''',
+#         'check': lambda ns: ('square' in ns and
+#                            callable(ns['square']) and
+#                            all(ns['square'](n) == n*n for n in [-2, 0, 4])),
+#         'error': 'Функция square должна возвращать квадрат числа. Проверьте случаи: square(4)=16, square(0)=0, square(-2)=4',
+#         'success': 'Отлично! Функция square работает правильно!'
+#     }
+#}
 
 import openai
-import os
-from dotenv import load_dotenv
 
-# Загружаем переменные окружения из .env файла
-load_dotenv()
-
-# Устанавливаем API ключ OpenAI
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def generate_ml_task(context: str = None) -> dict:
     """
     Генерирует задание по машинному обучению с помощью OpenAI API.
-    
+
     :param context: Контекст урока (например, предыдущие задания или тема).
     :return: Словарь с заданием, подсказкой, функцией проверки и сообщениями.
     """
@@ -38,15 +60,18 @@ def generate_ml_task(context: str = None) -> dict:
         "    'error': 'Нужно создать модель линейной регрессии.',\n"
         "    'success': 'Отлично! Модель линейной регрессии создана!'\n"
         "}\n"
-        "Сгенерируй новое задание. Оно должно быть сложнее предыдущего."
+        "Сгенерируй новое задание. Оно должно быть создано на основе контекста, если он есть.\n"
+        "Если контекста нет, сгенерируй самое простое задание.\n"
+        "Не создавай задания, которые уже указаны в контексте как выполненные.\n"
+        "Выведи задание в формате JSON, **не используй Markdown**."
     )
 
     if context:
         prompt += f"\nКонтекст: {context}"
 
     # Вызываем OpenAI API для генерации задания
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",  # Можно использовать gpt-4, если доступен
+    response = openai.ChatCompletion.create(   # TODO: openai 0.28.* -> openai 1.*
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": "Ты — AI-учитель по машинному обучению."},
             {"role": "user", "content": prompt}
@@ -55,23 +80,15 @@ def generate_ml_task(context: str = None) -> dict:
         temperature=0.7
     )
 
-    # Извлекаем сгенерированный текст  
+    # Извлекаем сгенерированный текст
     generated_text = response['choices'][0]['message']['content'].strip()
 
     # Парсим сгенерированный текст в словарь
     try:
         task = eval(generated_text)  # Преобразуем строку в словарь
+        task['context'] = context
         return task
     except Exception as e:
         print(f"Ошибка при парсинге задания: {e}")
+        print(f"Сгенерированный текст:\n{generated_text}")
         return None
-
-# Пример использования
-if __name__ == "__main__":
-    # Генерация задания
-    task = generate_ml_task()
-    if task:
-        print("Сгенерированное задание:")
-        print(task)
-    else:
-        print("Не удалось сгенерировать задание.")
