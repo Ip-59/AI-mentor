@@ -32,7 +32,11 @@ class LearnlyEngine:
         self.current_task = 1
 
         # TODO:
-        # Получаем задания от AI. См. файл learnly_ai.py
+        # Добавить возможность:
+        # 1. Создавать задания "на лету"
+        # 2. Добавить команды управления обучением (skip, finish, hint...)
+        # 3. Сохранять контекст и передавать его в очередное задание
+        # 4. Добавить возможность сохранять и загружать прогресс обучения, используя memory.py
 
         task_knn = generate_ml_task("KNN")
         task_second = generate_ml_task(f"Уже выполненные задания: {task_knn['context']}")
@@ -59,6 +63,7 @@ class LearnlyEngine:
             replace=False
         )
 
+    # TODO: передавать задание, а не номер задания
     def show_task(self, task_num: int) -> None:
         """Показывает задание с указанным номером"""
         if task_num in self.tasks:
@@ -117,4 +122,13 @@ class LearnlyEngine:
             "💡 Нужна подсказка? Напишите 'hint' или 'help' в ячейке с %%check_solution"
         ))
         time.sleep(1)
+
         self.show_task(self.current_task)
+
+        # TODO
+        # context = "Начинаем с самого простого задания по SVM"
+        # for i in range(10):
+        #     new_task = generate_ml_task(context)
+        #     context += f"\nЗадача {i+1}: {new_task['problem']}"
+        #
+        #     self.show_task(new_task)
