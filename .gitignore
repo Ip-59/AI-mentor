@@ -1,4 +1,4 @@
-/config
-/github-ssh-key.txt
-/github-key.ssh
-/github-key.ssh.pub
+config
+github-ssh-key.txt
+github-key.ssh
+github-key.ssh.pub
