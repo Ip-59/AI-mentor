@@ -38,36 +38,52 @@
 #     }
 #}
 
+from typing import Any, Dict
 import openai
 
 
-def generate_ml_task(context: str = None) -> dict:
-    """
-    Генерирует задание по машинному обучению с помощью OpenAI API.
+# lesson_part - это словарь, который содержит информацию о кусочке урока.
+# lesson_part["type"] - тип кусочка урока.
+# lesson_part["content"] - содержание кусочка урока.
 
-    :param context: Контекст урока (например, предыдущие задания или тема).
-    :return: Словарь с заданием, подсказкой, функцией проверки и сообщениями.
-    """
-    # Формируем промпт для генерации задания
+def create_new_lesson():
+    return {
+        "parts": [
+            {
+                "type": "text",
+                "content": "Здравствуйте! Давайте начнем наш урок.",
+            },
+            {
+                "type": "code",
+                "content": "print('Hello, world!')",
+            },
+            {
+                "type": "text",
+                "content": "Этот код выводит на экран приветствие.",
+            },
+        ],
+    }
+
+
+def generate_lesson_part(lesson) -> dict:
     prompt = (
-        "Ты — AI-учитель по машинному обучению. Сгенерируй задание для ученика. "
-        "Задание должно быть связано с машинным обучением и Python. "
-        "Вот пример задания:\n"
+        "Сгенерируй следующий кусок урока."
+        "Учитывай следующие правила:\n"
+        "1. Кусок урока должен быть связан предыдущими кусочками урока. "
+        "2. Новые кусочки урока должны опираться на знания из предыдущих. "
+        "3. Не повторять уже разобранные кусочки урока. "
+    )
+    prompt += (
+        f"\n\nУрок на данный момент:\n{lesson}\n\n"
+    )
+    prompt += (
+        "Сгенерируй задание в формате JSON:\n"
         "{\n"
-        "    'problem': 'Создайте модель линейной регрессии с помощью библиотеки scikit-learn.',\n"
-        "    'hint': 'Используйте класс LinearRegression из sklearn.linear_model.',\n"
-        "    'check': lambda ns: 'LinearRegression' in ns and callable(ns['LinearRegression']),\n"
-        "    'error': 'Нужно создать модель линейной регрессии.',\n"
-        "    'success': 'Отлично! Модель линейной регрессии создана!'\n"
+        "    'type': 'text',\n"
+        "    'content': [текст создаваемого кусочка урока],\n"
         "}\n"
-        "Сгенерируй новое задание. Оно должно быть создано на основе контекста, если он есть.\n"
-        "Если контекста нет, сгенерируй самое простое задание.\n"
-        "Не создавай задания, которые уже указаны в контексте как выполненные.\n"
         "Выведи задание в формате JSON, **не используй Markdown**."
     )
-
-    if context:
-        prompt += f"\nКонтекст: {context}"
 
     # Вызываем OpenAI API для генерации задания
     response = openai.ChatCompletion.create(   # TODO: openai 0.28.* -> openai 1.*
@@ -85,10 +101,9 @@ def generate_ml_task(context: str = None) -> dict:
 
     # Парсим сгенерированный текст в словарь
     try:
-        task = eval(generated_text)  # Преобразуем строку в словарь
-        task['context'] = context
-        return task
+        new_lesson_part = eval(generated_text)
+        return new_lesson_part
     except Exception as e:
-        print(f"Ошибка при парсинге задания: {e}")
+        print(f"Ошибка при парсинге сгенерированного моделью текста: {e}")
         print(f"Сгенерированный текст:\n{generated_text}")
         return None
