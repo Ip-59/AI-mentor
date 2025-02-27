@@ -1,3 +1,4 @@
+import os
 import json
 import time
 
@@ -20,6 +21,232 @@ def reload_learnly(line):
 
 # Автоматически регистрируем магическую команду при импорте этого модуля
 get_ipython().register_magic_function(reload_learnly, 'line')
+
+# Создано ChatGPT для Игоря
+def start_lesson():
+    """
+    Запускает цикл урока с интерактивной обработкой ввода ученика.
+    
+    Функция:
+      - Инициализирует список для хранения прогресса урока;
+      - Создаёт (очищает) файл lesson.json в начале урока;
+      - Поочередно выводит части урока (текст или задание);
+      - Обрабатывает команды ученика: "дальше", "расскажи подробнее",
+        "приведи пример кода" или "закончи урок";
+      - Сохраняет все действия (вывод, ответы, команды) в список словарей.
+      
+    Каждый элемент списка имеет следующую структуру (пример):
+      {
+          "part_index": <номер части урока>,
+          "type": "text" или "assignment",
+          "content": <текст урока или задание>,
+          "action": <команда ученика, если применимо>,
+          "student_answer": <ответ ученика, если применимо>,
+          "timestamp": <метка времени>
+      }
+      
+    По завершении урока список сохраняется в JSON-файл lesson.json.
+    
+    Создано ChatGPT для Игоря.
+    """
+    # Инициализируем список для хранения прогресса урока
+    lesson_progress = []
+    
+    # Определяем путь к файлу прогресса урока
+    lesson_file = "lesson.json"
+    
+    # Создаём (или очищаем) JSON файл с прогрессом урока в самом начале урока
+    with open(lesson_file, "w", encoding="utf-8") as f:
+        json.dump([], f, ensure_ascii=False, indent=4)
+    
+    # Пример структуры урока: список частей, каждая из которых описывается словарём.
+    # Поля:
+    #   type: "text" – обычный текст лекции,
+    #         "assignment" – задание для ученика;
+    #   content: содержание текста или задание;
+    #   hint: дополнительная подсказка (опционально);
+    #   example: пример кода для иллюстрации (опционально).
+    lesson_parts = [
+        {
+            "type": "text",
+            "content": "Добро пожаловать на урок по Python! Сегодня мы познакомимся с основными концепциями языка.",
+            "hint": "Python – это интерпретируемый язык, удобный для быстрого прототипирования.",
+            "example": "print('Hello, world!')"
+        },
+        {
+            "type": "assignment",
+            "content": "Напишите функцию, которая принимает два числа и возвращает их сумму.",
+            "hint": "Подумайте, как объявить функцию и вернуть результат.",
+            "example": "def add(a, b):\n    return a + b"
+        },
+        {
+            "type": "text",
+            "content": "Отлично! Вы успешно справились с заданием. Продолжим изучение более сложных конструкций.",
+            "hint": "Возможно, стоит обратить внимание на условные операторы и циклы.",
+            "example": ""
+        }
+    ]
+    
+    part_index = 0  # Индекс текущей части урока
+    
+    # Бесконечный цикл урока (выход из цикла – исчерпание всех частей урока или команда 'закончи урок')
+    while True:
+        # Если все части урока пройдены, завершаем цикл
+        if part_index >= len(lesson_parts):
+            print("\nУрок завершён: все части пройдены.")
+            break
+        
+        current_part = lesson_parts[part_index]
+        
+        # Если часть урока – текст лекции
+        if current_part["type"] == "text":
+            print("\n--- Часть урока (текст) ---")
+            print(current_part["content"])
+            print("\nДоступные команды: 'дальше', 'расскажи подробнее', 'приведи пример кода', 'закончи урок'")
+            
+            # Сохраняем вывод текста в прогресс урока
+            lesson_progress.append({
+                "part_index": part_index,
+                "type": "text",
+                "content": current_part["content"],
+                "timestamp": time.time()
+            })
+            
+            # Читаем команду ученика
+            command = input("Введите команду: ").strip().lower()
+            
+            if command == "дальше":
+                part_index += 1
+                continue
+            elif command == "расскажи подробнее":
+                print("\nПодсказка:")
+                print(current_part.get("hint", "Подробная информация отсутствует."))
+                lesson_progress.append({
+                    "part_index": part_index,
+                    "action": "расскажи подробнее",
+                    "detail": current_part.get("hint", ""),
+                    "timestamp": time.time()
+                })
+            elif command == "приведи пример кода":
+                print("\nПример кода:")
+                example_code = current_part.get("example", "Пример кода отсутствует.")
+                print(example_code)
+                lesson_progress.append({
+                    "part_index": part_index,
+                    "action": "приведи пример кода",
+                    "example": example_code,
+                    "timestamp": time.time()
+                })
+            elif command == "закончи урок":
+                lesson_progress.append({
+                    "part_index": part_index,
+                    "action": "закончи урок",
+                    "timestamp": time.time()
+                })
+                break
+            else:
+                print("Неизвестная команда. Продолжаем урок.")
+        
+        # Если часть урока – задание для ученика
+        elif current_part["type"] == "assignment":
+            print("\n--- Задание для ученика ---")
+            print("Задание (код):")
+            print(current_part["content"])
+            print("\nОжидается выполнение задания. Введите ваш код или комментарий, а затем введите команду для продолжения (например, 'дальше', 'расскажи подробнее', 'приведи пример кода', 'закончи урок').")
+            
+            # Сохраняем задание в прогресс
+            lesson_progress.append({
+                "part_index": part_index,
+                "type": "assignment",
+                "content": current_part["content"],
+                "timestamp": time.time()
+            })
+            
+            # Получаем ответ ученика (код или комментарий)
+            student_answer = input("Ваш ответ на задание:\n")
+            lesson_progress.append({
+                "part_index": part_index,
+                "student_answer": student_answer,
+                "timestamp": time.time()
+            })
+            
+            # Читаем команду ученика
+            command = input("Введите команду: ").strip().lower()
+            
+            if command == "дальше":
+                part_index += 1
+                continue
+            elif command == "расскажи подробнее":
+                print("\nПодсказка:")
+                print(current_part.get("hint", "Подробная информация отсутствует."))
+                lesson_progress.append({
+                    "part_index": part_index,
+                    "action": "расскажи подробнее",
+                    "detail": current_part.get("hint", ""),
+                    "timestamp": time.time()
+                })
+            elif command == "приведи пример кода":
+                print("\nПример кода:")
+                example_code = current_part.get("example", "Пример кода отсутствует.")
+                print(example_code)
+                lesson_progress.append({
+                    "part_index": part_index,
+                    "action": "приведи пример кода",
+                    "example": example_code,
+                    "timestamp": time.time()
+                })
+            elif command == "закончи урок":
+                lesson_progress.append({
+                    "part_index": part_index,
+                    "action": "закончи урок",
+                    "timestamp": time.time()
+                })
+                break
+            else:
+                print("Неизвестная команда. Продолжаем урок.")
+        
+        # После обработки текущей части переходим к следующей
+        part_index += 1
+
+    # По завершении урока сохраняем весь прогресс в JSON файл lesson.json
+    with open(lesson_file, "w", encoding="utf-8") as f:
+        json.dump(lesson_progress, f, ensure_ascii=False, indent=4)
+    print("\nПрогресс урока сохранен в файле", lesson_file)
+
+
+# Функция для красивого вывода текста лекции и прогресса урока из JSON файла
+# Создано ChatGPT для Игоря
+def display_lesson_and_progress():
+    """
+    Выводит на экран:
+      1. Текст лекции (фильтруя записи типа 'text')
+      2. Полный прогресс урока, сохранённый в lesson.json
+      
+    Данные выводятся в отформатированном виде для удобства чтения.
+    """
+    lesson_file = "lesson.json"
+    
+    if os.path.exists(lesson_file):
+        with open(lesson_file, "r", encoding="utf-8") as f:
+            lesson_progress = json.load(f)
+    else:
+        print("Файл с прогрессом урока не найден.")
+        return
+    
+    print("\n===== Текст лекции =====")
+    for entry in lesson_progress:
+        if entry.get("type") == "text":
+            print(f"Часть {entry.get('part_index')}: {entry.get('content')}")
+    
+    print("\n===== Прогресс урока =====")
+    # Выводим весь прогресс в формате JSON с отступами для лучшей читаемости
+    print(json.dumps(lesson_progress, ensure_ascii=False, indent=4))
+
+
+# Если модуль запускается напрямую, запускаем урок и затем выводим прогресс
+if __name__ == "__main__":
+    start_lesson()
+    display_lesson_and_progress()
 
 
 # TODO: способность задавать проверочные вопросы

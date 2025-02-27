@@ -2,3 +2,7 @@ config
 github-ssh-key.txt
 github-key.ssh
 github-key.ssh.pub
+.git
+.tmp/
+.venv/
+.ipynb_chekpoints
