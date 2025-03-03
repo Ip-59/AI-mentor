@@ -65,6 +65,7 @@ def create_new_lesson():
     }
 
 
+
 def generate_lesson_part(lesson) -> dict:
     prompt = (
         "Сгенерируй следующий кусок урока."
