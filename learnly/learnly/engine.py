@@ -1,26 +1,33 @@
 import os
 import json
 import time
+from typing import Dict, List, Any, Optional, Callable, Union
+from abc import ABC, abstractmethod
 
 from IPython.core.getipython import get_ipython
-from IPython.display import display, Markdown
-from IPython.core.magic import register_line_magic, register_cell_magic
+from IPython.display import display, Markdown, HTML
+import ipywidgets as widgets
+
+__all__ = ['LearnlyEngine', 'LessonPart', 'TextPart', 'CodePart', 'AssignmentPart']
+
+# Проверяем, находимся ли мы в IPython окружении
+ipython = get_ipython()
+if ipython is not None:
+    from IPython.core.magic import register_line_magic, register_cell_magic
+
+    def reload_learnly(line):
+        """Перезагружает модуль LearnlyEngine"""
+        import importlib
+        import sys
+        if 'learnly_engine' in sys.modules:
+            importlib.reload(sys.modules['learnly_engine'])
+        return "LearnlyEngine перезагружен"
+
+    # Регистрируем магическую команду только если мы в IPython
+    ipython.register_magic_function(reload_learnly, 'line')
 
 from .lesson import create_new_lesson
-
-
-@register_line_magic
-def reload_learnly(line):
-    """Перезагружает модуль LearnlyEngine"""
-    import importlib
-    import sys
-    if 'learnly_engine' in sys.modules:
-        importlib.reload(sys.modules['learnly_engine'])
-    return "LearnlyEngine перезагружен"
-
-
-# Автоматически регистрируем магическую команду при импорте этого модуля
-get_ipython().register_magic_function(reload_learnly, 'line')
+from .display import LearnlyDisplay
 
 
 # TODO: способность задавать проверочные вопросы
@@ -29,74 +36,185 @@ get_ipython().register_magic_function(reload_learnly, 'line')
 # - проверить и написать отзыв для ученика - AI
 
 
+# Базовый класс для частей урока
+class LessonPart(ABC):
+    def __init__(self, content: str, hint: str = "", example: str = ""):
+        self.content = content
+        self.hint = hint
+        self.example = example
+        self.timestamp = time.time()
+
+    @abstractmethod
+    def display(self, display_instance: Any, part_index: int) -> None:
+        """Отображает содержимое части урока"""
+        pass
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Преобразует часть урока в словарь для сохранения"""
+        return {
+            "content": self.content,
+            "hint": self.hint,
+            "example": self.example,
+            "timestamp": self.timestamp
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'LessonPart':
+        """Создает часть урока из словаря"""
+        instance = cls(
+            content=data.get("content", ""),
+            hint=data.get("hint", ""),
+            example=data.get("example", "")
+        )
+        instance.timestamp = data.get("timestamp", time.time())
+        return instance
+
+
+class TextPart(LessonPart):
+    """Часть урока с теоретическим материалом"""
+
+    def display(self, display_instance: Any, part_index: int) -> None:
+        """Отображает текстовую часть урока"""
+        display_instance.show_text_content(self.content, part_index)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Преобразует текстовую часть в словарь"""
+        data = super().to_dict()
+        data["type"] = "text"
+        return data
+
+
+class CodePart(LessonPart):
+    """Часть урока с примером кода"""
+
+    def display(self, display_instance: Any, part_index: int) -> None:
+        """Отображает пример кода"""
+        display_instance.show_text_content(self.content, part_index)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Преобразует часть с кодом в словарь"""
+        data = super().to_dict()
+        data["type"] = "code"
+        return data
+
+
+class AssignmentPart(LessonPart):
+    """Часть урока с заданием"""
+
+    def __init__(self, content: str, hint: str = "", example: str = "",
+                 success_message: str = "Отлично! Задание выполнено верно.",
+                 error_message: str = "Проверьте ваше решение и попробуйте снова."):
+        super().__init__(content, hint, example)
+        self.success_message = success_message
+        self.error_message = error_message
+
+    def display(self, display_instance: Any, part_index: int) -> None:
+        """Отображает задание"""
+        display_instance.show_assignment(self.content, part_index)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Преобразует задание в словарь"""
+        data = super().to_dict()
+        data["type"] = "assignment"
+        data["success_message"] = self.success_message
+        data["error_message"] = self.error_message
+        return data
+
+
+class Lesson:
+    """Класс для работы с уроком"""
+
+    def __init__(self, title: str, parts: List[LessonPart] = None):
+        self.title = title
+        self.parts = parts or []
+
+    def add_part(self, part: LessonPart) -> None:
+        """Добавляет часть в урок"""
+        self.parts.append(part)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Преобразует урок в словарь для сохранения"""
+        return {
+            "title": self.title,
+            "parts": [part.to_dict() for part in self.parts]
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Lesson':
+        """Создает урок из словаря"""
+        lesson = cls(data.get("title", "Без названия"))
+        for part_data in data.get("parts", []):
+            part_type = part_data.get("type")
+            if part_type == "text":
+                part = TextPart.from_dict(part_data)
+            elif part_type == "assignment":
+                part = AssignmentPart.from_dict(part_data)
+            else:
+                continue
+            lesson.add_part(part)
+        return lesson
+
+
 class LearnlyEngine:
+    """Основной класс для управления процессом обучения"""
+
     def __init__(self):
         self.lesson = create_new_lesson()
-
-        
-        # Инициализируем список для хранения прогресса урока
-        self.lesson_progress = []
-                
-        # Определяем путь к файлу прогресса урока
+        self.display = LearnlyDisplay()
+        self.lesson_progress: List[Dict[str, Any]] = []
         self.lesson_file = "lesson.json"
-        
-        # Создаём (или очищаем) JSON файл с прогрессом урока в самом начале урока
-        with open(self.lesson_file, "w", encoding="utf-8") as f:
-            json.dump([], f, ensure_ascii=False, indent=4)
+        self.current_part_index: int = 1
+        self.memory: Dict[str, Any] = {'tasks': {}}
 
+        # Создаём (или очищаем) JSON файл с прогрессом урока
+        self._save_progress()
 
-    def show_hint(self, task_num: int) -> None:
-        """Показывает подсказку для указанного задания"""
-        if task_num in self.memory['tasks']:
-            display(Markdown(f"💡 **Подсказка:** {self.memory['tasks'][task_num]['hint']}"))
-            self.create_solution_cell(self.memory['tasks'][task_num]['problem'])
-        else:
-            display(Markdown("❌ Не удалось найти текущее задание"))
-
-    def create_solution_cell(self, problem: str) -> None:
-        """Создает новую ячейку с магической командой"""
-        shell = get_ipython()
-
-        # Разбиваем текст задания на строки по 80 символов
-        wrapped_problem = []
-        words = problem.split()
+    def _wrap_text(self, text: str, max_length: int = 77) -> str:
+        """Разбивает текст на строки по указанной максимальной длине"""
+        words = text.split()
+        lines = []
         current_line = "# "
 
         for word in words:
-            if len(current_line + word) > 77:  # 77 = 80 - 3 для "# " в начале
-                wrapped_problem.append(current_line)
+            if len(current_line + word) > max_length:
+                lines.append(current_line)
                 current_line = "# " + word
             else:
                 current_line += (" " + word if current_line != "# " else word)
 
-        wrapped_problem.append(current_line)
-        problem_text = "\n".join(wrapped_problem)
+        lines.append(current_line)
+        return "\n".join(lines)
 
+    def create_solution_cell(self, problem: str) -> None:
+        """Создает новую ячейку с магической командой"""
+        shell = get_ipython()
+        wrapped_problem = self._wrap_text(problem)
         shell.set_next_input(
-            f"%%check_solution\n\n"
-            f"{problem_text}\n"
-            f"# Напишите ваше решение здесь:\n\n",
+            f"%%check_solution\n\n{wrapped_problem}\n# Напишите ваше решение здесь:\n\n",
             replace=False
         )
 
-    def show_task(self, task_num: int):
-        """Показывает задание с указанным номером"""
-        if task_num not in self.memory['tasks']:
-            # Если задания еще нет, генерируем его
-            task = self.get_next_task()
-            if not task:
-                display(Markdown("❌ Не удалось сгенерировать задание"))
-                return
-
-        display(Markdown(f"### Задание {task_num}\\n{self.memory['tasks'][task_num]['problem']}"))
-        self.create_solution_cell(self.memory['tasks'][task_num]['problem'])
+    def get_next_task(self) -> Optional[Dict[str, Any]]:
+        """Получает следующее задание"""
+        # Реальная реализация должна генерировать или получать задания
+        # Пример реализации:
+        task = {
+            'problem': f'Задание {len(self.memory["tasks"]) + 1}: Напишите функцию для...',
+            'hint': 'Используйте стандартные операторы Python...',
+            'success': 'Отлично! Задание выполнено правильно.',
+            'error': 'В вашем решении есть ошибка. Попробуйте еще раз.',
+            'check': lambda ns: 'solution' in ns and callable(ns['solution'])
+        }
+        task_index = len(self.memory["tasks"])
+        self.memory['tasks'][task_index] = task
+        return task
 
     def check_solution(self, cell: str, user_namespace: dict) -> None:
         """Проверяет решение пользователя"""
         clean_cell = cell.strip().lower()
 
         if any(word in clean_cell for word in ['hint', 'help']):
-            self.show_hint(self.current_task)
+            self.show_hint(self.current_part_index)
             return
 
         if 'finish' in clean_cell:
@@ -107,283 +225,272 @@ class LearnlyEngine:
             self.skip_task()
             return
 
-        # TODO
-
-        if self.current_task in self.memory['tasks']:
-            task = self.memory['tasks'][self.current_task]
+        task_index = self.current_part_index
+        if task_index in self.memory['tasks']:
+            task = self.memory['tasks'][task_index]
             try:
                 if task['check'](user_namespace):
-                    display(Markdown(f"✅ {task['success']}"))
+                    self.display.show_success(task['success'])
                     time.sleep(1)
                     self.advance_to_next_task()
                 else:
-                    display(Markdown(f"❌ {task['error']}"))
+                    self.display.show_error(task['error'])
                     self.create_solution_cell(task['problem'])
             except Exception as e:
-                display(Markdown(f"❌ Ошибка при проверке: {str(e)}"))
+                self.display.show_error(f"Ошибка при проверке: {str(e)}")
                 self.create_solution_cell(task['problem'])
 
+    def show_hint(self, task_index: int) -> None:
+        """Показывает подсказку для указанного задания"""
+        if task_index in self.memory['tasks']:
+            self.display.show_hint(self.memory['tasks'][task_index]['hint'])
+            self.create_solution_cell(self.memory['tasks'][task_index]['problem'])
 
-    def finish_lesson(self):
-        """Завершает текущий урок"""
-
-        # TODO
-
-        completed_tasks = len(self.memory['tasks'])
-        display(Markdown(
-            f"### 🎉 Поздравляем!\n"
-            f"Вы завершили урок, выполнив {completed_tasks} заданий!\n"
-            f"Ваши достижения:\n"
-            f"* Количество выполненных заданий: {completed_tasks}\n"
-            f"* Изученные темы: {', '.join(task['problem'].split()[0:3] + ['...'] for task in self.memory['tasks'].values())}\n"
-        ))
-
-# Функция для красивого вывода текста лекции и прогресса урока из JSON файла
-# Создано ChatGPT для Игоря
-    def display_lesson_and_progress():
-        """
-        Выводит на экран:
-        1. Текст лекции (фильтруя записи типа 'text')
-        2. Полный прогресс урока, сохранённый в lesson.json
-        
-        Данные выводятся в отформатированном виде для удобства чтения.
-        """
-        lesson_file = "lesson.json"
-        
-        if os.path.exists(lesson_file):
-            with open(lesson_file, "r", encoding="utf-8") as f:
-                lesson_progress = json.load(f)
+            # Сохраняем запрос подсказки в прогресс урока
+            self.lesson_progress.append({
+                "part_index": task_index,
+                "action": "запрос_подсказки",
+                "timestamp": time.time()
+            })
+            self._save_progress()
         else:
-            print("Файл с прогрессом урока не найден.")
-            return
-        
-        print("\n===== Текст лекции =====")
-        for entry in lesson_progress:
-            if entry.get("type") == "text":
-                print(f"Часть {entry.get('part_index')}: {entry.get('content')}")
-        
-        print("\n===== Прогресс урока =====")
-        # Выводим весь прогресс в формате JSON с отступами для лучшей читаемости
-        print(json.dumps(lesson_progress, ensure_ascii=False, indent=4))
+            self.display.show_error("Не удалось найти текущее задание")
 
+    def show_task(self, task_index: int) -> None:
+        """Показывает задание с указанным номером"""
+        if task_index not in self.memory['tasks']:
+            task = self.get_next_task()
+            if not task:
+                self.display.show_error("Не удалось сгенерировать задание")
+                return
+
+        self.display.show_assignment(
+            self.memory['tasks'][task_index]['problem'],
+            task_index
+        )
+        self.create_solution_cell(self.memory['tasks'][task_index]['problem'])
+
+        # Сохраняем показ задания в прогресс урока
+        self.lesson_progress.append({
+            "part_index": task_index,
+            "type": "assignment",
+            "content": self.memory['tasks'][task_index]['problem'],
+            "timestamp": time.time()
+        })
+        self._save_progress()
+
+    def finish_lesson(self) -> None:
+        """Завершает урок и показывает сводку"""
+        # Сохраняем завершение урока в прогресс
+        self.lesson_progress.append({
+            "action": "finish_lesson",
+            "timestamp": time.time()
+        })
+        self._save_progress()
+
+        # Показываем сообщение о завершении
+        self.display.show_text_content("## Урок завершён\n\nВсе части урока пройдены.", -1)
+
+        # Показываем статистику
+        completed_parts = len([p for p in self.lesson_progress if p.get("type") in ["text", "assignment"]])
+        total_parts = len(self.lesson.parts)
+
+        stats = f"""
+### Статистика урока:
+- Пройдено частей: {completed_parts} из {total_parts}
+- Время выполнения: {int((time.time() - self.lesson_progress[0]["timestamp"]) / 60)} минут
+"""
+        self.display.show_text_content(stats, -1)
 
     def start_lesson(self) -> None:
-        display(Markdown(
-            "# Добро пожаловать в Learnly!\n"
-            "Это интерактивный обучающий ноутбук.\n"
-            "Как выполнять задания:\n"
-            "1. В появившейся ячейке напишите своё решение\n"
-            "2. Запустите ячейку (Shift + Enter)\n"
-            "3. Получите обратную связь и следующее задание!"
-        ))
-        display(Markdown(
-            "💡 Нужна подсказка? Напишите 'hint' или 'help' в ячейке с %%check_solution"
-        ))
-        time.sleep(1)
+        """Начинает урок"""
+        self.display.show_welcome_message()
 
-        # TODO:
-        # Загружаем прогресс урока
-        with open(self.lesson_file, "r") as f:
-            self.lesson_progress = json.load(f)
+        # Загружаем прогресс урока если он есть
+        try:
+            with open(self.lesson_file, "r", encoding="utf-8") as f:
+                self.lesson_progress = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.lesson_progress = []
 
-        # TODO:
-        # цикл
-        #   создаем новую часть урока
-        #   если часть урока - это текст - выводим его, выводим ячейку с возможнымикомандами
+        # Показываем текущий прогресс
+        self.display.show_lesson_progress(self.lesson_progress)
 
-        #   если часть урока - это задание для ученика - выводим его как код, ждем решения
-        #   обрабатываем команду ученика
-        #     Если "дальше" - продолжаем цикл
-        #     Если "расскажи подробнее" - выводим подсказку
-        #     Если "приведи пример кода" - выводим пример кода
-        #     Если "закончи урок" - завершаем урок
-        #     ...
-        #   Сохраняем прогресс урока
+        # Запускаем интерактивный урок
+        self.begin_lesson()
 
-    # Создано ChatGPT для Игоря
-    # def begin_lesson():
-        """
-        Запускает цикл урока с интерактивной обработкой ввода ученика.
-        
-        Функция:
-        - Инициализирует список для хранения прогресса урока;
-        - Создаёт (очищает) файл lesson.json в начале урока;
-        - Поочередно выводит части урока (текст или задание);
-        - Обрабатывает команды ученика: "дальше", "расскажи подробнее",
-            "приведи пример кода" или "закончи урок";
-        - Сохраняет все действия (вывод, ответы, команды) в список словарей.
-        
-        Каждый элемент списка имеет следующую структуру (пример):
-        {
-            "part_index": <номер части урока>,
-            "type": "text" или "assignment",
-            "content": <текст урока или задание>,
-            "action": <команда ученика, если применимо>,
-            "student_answer": <ответ ученика, если применимо>,
-            "timestamp": <метка времени>
-        }
-        
-        По завершении урока список сохраняется в JSON-файл lesson.json.
-        
-        Создано ChatGPT для Игоря.
-        """
-        
-        # Пример структуры урока: список частей, каждая из которых описывается словарём.
-        # Поля:
-        #   type: "text" – обычный текст лекции,
-        #         "assignment" – задание для ученика;
-        #   content: содержание текста или задание;
-        #   hint: дополнительная подсказка (опционально);
-        #   example: пример кода для иллюстрации (опционально).
-        lesson_parts = [
-            {
-                "type": "text",
-                "content": "Добро пожаловать на урок по Python! Сегодня мы познакомимся с основными концепциями языка.",
-                "hint": "Python – это интерпретируемый язык, удобный для быстрого прототипирования.",
-                "example": "print('Hello, world!')"
-            },
-            {
-                "type": "assignment",
-                "content": "Напишите функцию, которая принимает два числа и возвращает их сумму.",
-                "hint": "Подумайте, как объявить функцию и вернуть результат.",
-                "example": "def add(a, b):\n    return a + b"
-            },
-            {
-                "type": "text",
-                "content": "Отлично! Вы успешно справились с заданием. Продолжим изучение более сложных конструкций.",
-                "hint": "Возможно, стоит обратить внимание на условные операторы и циклы.",
-                "example": ""
+    def advance_to_next_task(self) -> None:
+        """Переходит к следующему заданию"""
+        self.current_part_index += 1
+        self.show_task(self.current_part_index)
+
+    def skip_task(self) -> None:
+        """Пропускает текущее задание"""
+        # Сохраняем пропуск задания в прогресс
+        self.lesson_progress.append({
+            "part_index": self.current_part_index,
+            "action": "пропуск_задания",
+            "timestamp": time.time()
+        })
+        self._save_progress()
+
+        self.advance_to_next_task()
+
+    def _save_progress(self) -> None:
+        """Сохраняет прогресс урока в файл"""
+        try:
+            with open(self.lesson_file, "w", encoding="utf-8") as f:
+                json.dump(self.lesson_progress, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Ошибка при сохранении прогресса: {str(e)}")
+
+    def _create_command_widget(self) -> widgets.HBox:
+        """Создает виджет с кнопками для управления уроком"""
+        next_button = widgets.Button(
+            description='Дальше',
+            button_style='',
+            icon='arrow-right',
+            style={
+                'button_color': '#E6F7FF',  # очень светлый голубой
+                'text_color': '#1A4971',    # очень темный синий
+                'font_weight': 'normal'
             }
+        )
+
+        details_button = widgets.Button(
+            description='Подробнее',
+            button_style='',
+            icon='info',
+            style={
+                'button_color': '#E3F2FF',  # очень светлый голубой
+                'text_color': '#1E3A5F',    # очень темный синий
+                'font_weight': 'normal'
+            }
+        )
+
+        example_button = widgets.Button(
+            description='Пример',
+            button_style='',
+            icon='code',
+            style={
+                'button_color': '#E8F7ED',  # очень светлый зеленый
+                'text_color': '#1C4532',    # очень темный зеленый
+                'font_weight': 'normal'
+            }
+        )
+
+        finish_button = widgets.Button(
+            description='Закончить урок',
+            button_style='',
+            icon='check',
+            style={
+                'button_color': '#D4C6CC',  # очень светлый серо-розовый
+                'text_color': '#2D3748',    # очень темный серый
+                'font_weight': 'normal'
+            }
+        )
+
+        # Добавляем отступы между кнопками
+        return widgets.HBox(
+            [next_button, details_button, example_button, finish_button],
+            layout=widgets.Layout(
+                gap='10px',
+                padding='5px'
+            )
+        )
+
+    def _handle_button_click(self, button: widgets.Button, part: LessonPart) -> None:
+        """Обрабатывает нажатие кнопок управления уроком"""
+        if button.description == 'Дальше':
+            self.current_part_index += 1
+            if self.current_part_index < len(self.lesson.parts):
+                self._display_current_part()
+            else:
+                self.finish_lesson()
+        elif button.description == 'Подробнее':
+            self.display.show_hint(part.hint)
+            self.lesson_progress.append({
+                "part_index": self.current_part_index,
+                "action": "расскажи подробнее",
+                "detail": part.hint,
+                "timestamp": time.time()
+            })
+            self._save_progress()
+        elif button.description == 'Пример':
+            self.display.show_example(part.example)
+            self.lesson_progress.append({
+                "part_index": self.current_part_index,
+                "action": "приведи пример кода",
+                "example": part.example,
+                "timestamp": time.time()
+            })
+            self._save_progress()
+        elif button.description == 'Закончить урок':
+            self.finish_lesson()
+
+    def _display_current_part(self) -> None:
+        """Отображает текущую часть урока"""
+        if self.current_part_index >= len(self.lesson.parts):
+            self.finish_lesson()
+            return
+
+        current_part = self.lesson.parts[self.current_part_index]
+
+        # Отображаем содержимое части урока
+        current_part.display(self.display, self.current_part_index)
+
+        # Если это задание, добавляем поле для ввода
+        if isinstance(current_part, AssignmentPart):
+            answer_widget = widgets.Textarea(
+                placeholder='Введите ваш ответ здесь...',
+                description='Ваш ответ:',
+                rows=5,
+                style={'description_width': 'initial'}
+            )
+            display(answer_widget)
+
+        # Сохраняем в прогресс урока
+        self.lesson_progress.append({
+            "type": current_part.__class__.__name__.lower().replace('part', ''),
+            "content": current_part.content,
+            "part_index": self.current_part_index,
+            "timestamp": time.time()
+        })
+        self._save_progress()
+
+        # Создаем и отображаем кнопки управления
+        command_buttons = self._create_command_widget()
+        for button in command_buttons.children:
+            button.on_click(lambda b, part=current_part: self._handle_button_click(b, part))
+        display(command_buttons)
+
+    def begin_lesson(self) -> None:
+        """Запускает урок"""
+        # Создаем новый урок
+        self.lesson = Lesson("Введение в Python")
+
+        # Добавляем части урока
+        parts = [
+            TextPart(
+                content="Добро пожаловать на урок по Python! Сегодня мы познакомимся с основными концепциями языка.",
+                hint="Python – это интерпретируемый язык, удобный для быстрого прототипирования.",
+                example="print('Hello, world!')"
+            ),
+            AssignmentPart(
+                content="Напишите функцию, которая принимает два числа и возвращает их сумму.",
+                hint="Подумайте, как объявить функцию и вернуть результат.",
+                example="def add(a, b):\n    return a + b"
+            ),
+            TextPart(
+                content="Отлично! Вы успешно справились с заданием. Продолжим изучение более сложных конструкций.",
+                hint="Возможно, стоит обратить внимание на условные операторы и циклы.",
+                example=""
+            )
         ]
-        
-        part_index = 0  # Индекс текущей части урока
-        
-        # Бесконечный цикл урока (выход из цикла – исчерпание всех частей урока или команда 'закончи урок')
-        while True:
-            # Если все части урока пройдены, завершаем цикл
-            if part_index >= len(lesson_parts):
-                print("\nУрок завершён: все части пройдены.")
-                break
-            
-            current_part = lesson_parts[part_index]
-            
-            # Если часть урока – текст лекции
-            if current_part["type"] == "text":
-                print("\n--- Часть урока (текст) ---")
-                print(current_part["content"])
-                print("\nДоступные команды: 'дальше', 'расскажи подробнее', 'приведи пример кода', 'закончи урок'")
-                
-                # Сохраняем вывод текста в прогресс урока
-                self.lesson_progress.append({
-                    "part_index": part_index,
-                    "type": "text",
-                    "content": current_part["content"],
-                    "timestamp": time.time()
-                })
-                
-                # Читаем команду ученика
-                command = input("Введите команду: ").strip().lower()
-                
-                if command == "дальше":
-                    part_index += 1
-                    continue
-                elif command == "расскажи подробнее":
-                    print("\nПодсказка:")
-                    print(current_part.get("hint", "Подробная информация отсутствует."))
-                    self.lesson_progress.append({
-                        "part_index": part_index,
-                        "action": "расскажи подробнее",
-                        "detail": current_part.get("hint", ""),
-                        "timestamp": time.time()
-                    })
-                elif command == "приведи пример кода":
-                    print("\nПример кода:")
-                    example_code = current_part.get("example", "Пример кода отсутствует.")
-                    print(example_code)
-                    self.lesson_progress.append({
-                        "part_index": part_index,
-                        "action": "приведи пример кода",
-                        "example": example_code,
-                        "timestamp": time.time()
-                    })
-                elif command == "закончи урок":
-                    self.lesson_progress.append({
-                        "part_index": part_index,
-                        "action": "закончи урок",
-                        "timestamp": time.time()
-                    })
-                    break
-                else:
-                    print("Неизвестная команда. Продолжаем урок.")
-            
-            # Если часть урока – задание для ученика
-            elif current_part["type"] == "assignment":
-                print("\n--- Задание для ученика ---")
-                print("Задание (код):")
-                print(current_part["content"])
-                print("\nОжидается выполнение задания. Введите ваш код или комментарий, а затем введите команду для продолжения (например, 'дальше', 'расскажи подробнее', 'приведи пример кода', 'закончи урок').")
-                
-                # Сохраняем задание в прогресс
-                self.lesson_progress.append({
-                    "part_index": part_index,
-                    "type": "assignment",
-                    "content": current_part["content"],
-                    "timestamp": time.time()
-                })
-                
-                # Получаем ответ ученика (код или комментарий)
-                student_answer = input("Ваш ответ на задание:\n")
-                self.lesson_progress.append({
-                    "part_index": part_index,
-                    "student_answer": student_answer,
-                    "timestamp": time.time()
-                })
-                
-                # Читаем команду ученика
-                command = input("Введите команду: ").strip().lower()
-                
-                if command == "дальше":
-                    part_index += 1
-                    continue
-                elif command == "расскажи подробнее":
-                    print("\nПодсказка:")
-                    print(current_part.get("hint", "Подробная информация отсутствует."))
-                    self.lesson_progress.append({
-                        "part_index": part_index,
-                        "action": "расскажи подробнее",
-                        "detail": current_part.get("hint", ""),
-                        "timestamp": time.time()
-                    })
-                elif command == "приведи пример кода":
-                    print("\nПример кода:")
-                    example_code = current_part.get("example", "Пример кода отсутствует.")
-                    print(example_code)
-                    self.lesson_progress.append({
-                        "part_index": part_index,
-                        "action": "приведи пример кода",
-                        "example": example_code,
-                        "timestamp": time.time()
-                    })
-                elif command == "закончи урок":
-                    self.lesson_progress.append({
-                        "part_index": part_index,
-                        "action": "закончи урок",
-                        "timestamp": time.time()
-                    })
-                    break
-                else:
-                    print("Неизвестная команда. Продолжаем урок.")
-            
-            # После обработки текущей части переходим к следующей
-            part_index += 1
 
-        # По завершении урока сохраняем весь прогресс в JSON файл lesson.json
-        with open(self.lesson_file, "w", encoding="utf-8") as f:
-            json.dump(self.lesson_progress, f, ensure_ascii=False, indent=4)
-        print("\nПрогресс урока сохранен в файле", self.lesson_file)
+        # Добавляем части в урок
+        for part in parts:
+            self.lesson.add_part(part)
 
-
-# Если модуль запускается напрямую, запускаем урок и затем выводим прогресс
-#if __name__ == "__main__":
-#    begin_lesson()
-#    display_lesson_and_progress()
+        self.current_part_index = 0
+        self._display_current_part()

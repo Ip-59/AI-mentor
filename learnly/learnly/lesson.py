@@ -43,8 +43,8 @@ import openai
 
 
 # lesson_part - это словарь, который содержит информацию о кусочке урока.
-# lesson_part["type"] - тип кусочка урока.
-# lesson_part["content"] - содержание кусочка урока.
+# - lesson_part["type"] - тип кусочка урока.
+# - lesson_part["content"] - содержимое кусочка урока.
 
 def create_new_lesson():
     return {
@@ -63,7 +63,6 @@ def create_new_lesson():
             },
         ],
     }
-
 
 
 def generate_lesson_part(lesson) -> dict:
@@ -87,10 +86,11 @@ def generate_lesson_part(lesson) -> dict:
     )
 
     # Вызываем OpenAI API для генерации задания
-    response = openai.ChatCompletion.create(   # TODO: openai 0.28.* -> openai 1.*
+    # TODO: openai 0.28.* -> openai 1.*
+    response = openai.ChatCompletion.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": "Ты — AI-учитель по машинному обучению."},
+            {"role": "system", "content": "Ты - AI-учитель по машинному обучению."},
             {"role": "user", "content": prompt}
         ],
         max_tokens=500,
